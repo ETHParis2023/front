@@ -4,13 +4,17 @@
       <button v-if="!isConnected" id="connectWallet" class="connect-button" @click="enableEthereum">Connect wallet</button>
       <button v-else id="disconnectWallet" class="disconnect-button">{{ currentAccount.slice(0, 6)+'......'+currentAccount.slice(-6) }}</button>
     </div>
-    <div class="account">
-      <h2 class="mb-3">Account Abstraction Bridge: <span id="currentAccount"></span></h2>
+    <div class="transaction-status" v-if="transactionStatus">
+      <div v-if="transactionPending" class="loader"></div>
+      {{ transactionStatus }}
+      <div v-if!="transactionPending">
+        {{  }}
+      </div>
     </div>
     <div class="main-container">
       <div class="form-container">
         <form id="sendTransaction" class="mb-5" @submit.prevent="sendTransaction">
-          <h2 class="mb-3">Biconomy+Safe</h2>
+          <h2 class="mb-3">AA Bridge</h2>
           <div class="bridge-container">
             <div class="destination-from">
               <div class="destination">
@@ -18,8 +22,8 @@
               </div>
               <div class="row">
                 <select class="select select-80" v-model="selectedTokenFrom">
-                  <option v-for="option in optionsTokens" :key="option.value" :value="option.value">
-                    {{ option.text }}
+                  <option  v-for="option in filtredOptionsTokensFrom" :key="option.value" :value="option.value">
+                    {{option.text }}
                   </option>
                 </select>
                 <select class="select select-20" v-model="selectedChainFrom">
@@ -34,14 +38,9 @@
                 To:
               </div>
               <div class="row">
-                <select class="select select-80" v-model="selectedTokenTo">
-                  <option v-for="option in optionsTokens" :key="option.value" :value="option.value">
-                    {{ option.text }}
-                  </option>
-                </select>
-                <select class="select select-20" v-model="selectedChainTo">
+                <select class="select select-100" v-model="selectedChainTo">
                   <option v-for="option in optionsChains" :key="option.value" :value="option.value">
-                    {{ option.text }}
+                    {{option.text }}
                   </option>
                 </select>
               </div>
@@ -71,45 +70,67 @@
   import { ethers} from 'ethers';
   import abiUSDCPolygon from "@/ABI/polygonUSDC";
   import abiUSDCGnosis from "@/ABI/gnosisUSDC";
+  import abicUSDCelo from "@/ABI/celocUSD";
   
   export default {
     setup() {
       let selectedTokenFrom = ref('USDC')
       let selectedChainFrom = ref('0x89')
-      let selectedTokenTo = ref('USDC')
       let selectedChainTo = ref('0x64')
       let amount = ref()
       
       const optionsTokens = ref([
-        { value: 'USDC', text: 'USDC' },
+        { value: 'USDC', text: 'USDC', chains: ['0x89', '0x64'] },
+        { value: 'cUSD', text: 'cUSD', chains: ['0xa4ec'] },
+        // { value: 'USDT', text: 'USDT', chains: ['0x44d'] },
       ])
+      let filtredOptionsTokensFrom = ref([])
       const optionsChains = ref([
         { value: '0x89', text: 'Polygon' },
         { value: '0x64', text: 'Gnosis' },
-        { value: '0x25', text: 'Celo' },
+        { value: '0xa4ec', text: 'Celo' },
+        // { value: '0x44d', text: 'ZKEVM' },
       ])
       const currentAccount = ref(null);
       const isConnected = ref(false);
       const tab = ref('biconomy');
       let USDCPolygon;
       let USDCGnosis;
-      let USDCContract;
-      const bridgeAddressPolygonSafe = process.env.VUE_APP_BRIDGE_ADDRESS_POLYGON_SAFE
-      const bridgeAddressGnosisSafe = process.env.VUE_APP_BRIDGE_ADDRESS_GNOSIS_SAFE
-      let bridgeAddressSafe;
-      const decimal = 6;
+      let cUSDCelo;
+      let tokenContract;
+      const bridgeAddressPolygon = process.env.VUE_APP_BRIDGE_ADDRESS_POLYGON_SAFE
+      const bridgeAddressGnosis = process.env.VUE_APP_BRIDGE_ADDRESS_GNOSIS_SAFE
+      const bridgeAddressCelo = process.env.VUE_APP_BRIDGE_ADDRESS_CELO_SAFE
+      let destinationAddress;
       let tokenBalance = ref(0)
       let balanceError = ref('')
+      let transactionStatus = ref(null);
+      let transactionPending = ref(false);
 
       const getTokenBalance = async () => {
-        const balance = await USDCContract.balanceOf(currentAccount.value);
+        const balance = await tokenContract.balanceOf(currentAccount.value);
         return balance
       }
 
-      const makeRawAmount = async () => {
-        return amount.value * Math.pow(10, decimal)
+      const getDecimal = async() =>{
+        if (selectedTokenFrom.value == 'USDC'){
+          return 6
+        }
+        else if (selectedTokenFrom.value == 'cUSD'){
+          return 18
+        }
+        else if  (selectedTokenFrom.value == 'USDT'){
+          return 6
+        }
+        else{
+          return 1
+        }
       }
 
+      const makeRawAmount = async () => {
+        const decimal = await getDecimal()
+        return amount.value * Math.pow(10, decimal)
+      }
   
       const enableEthereum = async () => {
         try {
@@ -127,30 +148,60 @@
         }
       };
 
+      const selectDestAddres = async() =>{
+        if (selectedChainTo.value == '0x89'){
+          return bridgeAddressPolygon
+        }
+        else if (selectedChainTo.value == '0x64'){
+          return bridgeAddressGnosis
+        }
+        else if (selectedChainTo.value == '0xa4ec'){
+          return bridgeAddressCelo
+        }
+        else{
+          return 0
+        }
+      }
+
       const sendTransaction = async() =>{
         if (typeof window.ethereum !== 'undefined') {
           const amountRaw = await makeRawAmount(amount.value)
-          if (amountRaw > tokenBalance.value * Math.pow(10, decimal)){
+          if (amountRaw > tokenBalance.value * Math.pow(10, getDecimal())){
             balanceError.value = 'Infficient balance'
             return 0
           }
           else{
             balanceError.value = ''
           }
+          destinationAddress = await selectDestAddres()
           try {
-              const transactionResponse = await USDCContract.transfer(bridgeAddressSafe, amountRaw, {
-              gasLimit: ethers.utils.hexlify(200000)
-            });
+              transactionPending.value = true;
+              transactionStatus.value = 'Waiting for transaction...';
 
-            const receipt = await transactionResponse.wait();
+              const transactionResponse = await tokenContract.transfer(destinationAddress, amountRaw, {
+                gasLimit: ethers.utils.hexlify(200000)
+              });
 
-            if(receipt.status === 1) {
-                console.log(receipt)
-            }
-            else {
-                console.log('Transaction failed');
-            }
+              const receipt = await transactionResponse.wait();
+              transactionPending.value = false;
+
+              if(receipt.status === 1) {
+                  transactionStatus.value = 'Transaction complete';
+                  console.log(receipt)
+                  setTimeout(() => {
+                    transactionStatus.value = null;
+                  }, 2000);
+              }
+              else {
+                  transactionStatus.value = 'Transaction failed';
+                  setTimeout(() => {
+                    transactionStatus.value = null;
+                  }, 2000);
+                  console.log('Transaction failed');
+              }
           } catch (error) {
+              transactionPending.value = false;
+              transactionStatus.value = 'Transaction failed';
               console.error('Error occurred: ', error);
           }
           } else {
@@ -158,19 +209,32 @@
           }
       }
 
+      const filterTokensFrom = async() => {
+        let new_list = []
+        for (let option of optionsTokens.value){
+          if (option.chains.includes(selectedChainFrom.value)){
+            new_list.push(option)
+          }
+        }
+        return new_list
+      }
+
       const setChainId = async() =>{
         let chainIdHex = await window.ethereum.request({ method: 'eth_chainId' });
         selectedChainFrom.value = chainIdHex
         selectedChainTo.value = '0x25'
         if (selectedChainFrom.value == '0x89'){
-          USDCContract = USDCPolygon
-          bridgeAddressSafe = bridgeAddressPolygonSafe
+          tokenContract = USDCPolygon
         }
         else if(selectedChainFrom.value == '0x64'){
-          USDCContract = USDCGnosis
-          bridgeAddressSafe = bridgeAddressGnosisSafe
+          tokenContract = USDCGnosis
         }
+        else if(selectedChainFrom.value == '0xa4ec'){
+          tokenContract = cUSDCelo
+        }
+        filtredOptionsTokensFrom.value = await filterTokensFrom()
         const balance = await getTokenBalance()
+        const decimal = await getDecimal()
         return balance/Math.pow(10, decimal)
       }
 
@@ -185,14 +249,16 @@
         }
        
         if (selectedChainFrom.value == '0x89'){
-          USDCContract = USDCPolygon
-          bridgeAddressSafe = bridgeAddressPolygonSafe
+          tokenContract = USDCPolygon
         }
         else if(selectedChainFrom.value == '0x64'){
-          USDCContract = USDCGnosis
-          bridgeAddressSafe = bridgeAddressGnosisSafe
+          tokenContract = USDCGnosis
+        }
+        else if(selectedChainFrom.value == '0xa4ec'){
+          tokenContract = cUSDCelo
         }
         const balance = await getTokenBalance()
+        const decimal = await getDecimal()
         return balance/Math.pow(10, decimal)
       }
 
@@ -211,25 +277,37 @@
         const contract = new ethers.Contract(contractAddress, abiUSDCGnosis, signer);
         return contract
       }
+
+      const createContractcUSDCelo = async() =>{
+        const provider = new ethers.providers.Web3Provider(window.ethereum);
+        const signer = provider.getSigner();
+        const contractAddress = process.env.VUE_APP_CUSD_ADDRESS_CELO;
+        const contract = new ethers.Contract(contractAddress, abicUSDCelo, signer);
+        return contract
+      }
   
       onMounted(async () => {
         const provider = await detectEthereumProvider();
+        const accounts = await window.ethereum.request({ method: 'eth_accounts' });
 
-        USDCPolygon = await createContractUSDCPolygon();
-        USDCGnosis = await createContractUSDCGnosis();
   
-        if (provider) {
-          await enableEthereum()
+        if ((accounts.length != 0)) {
+          USDCPolygon = await createContractUSDCPolygon();
+          USDCGnosis = await createContractUSDCGnosis();
+          cUSDCelo = await createContractcUSDCelo();
+          currentAccount.value = accounts[0];
+          isConnected.value = true;
           if (provider !== window.ethereum) {
             console.error('Do you have multiple wallets installed?');
           } else {
+            console.log('provider', provider)
             window.ethereum.on('chainChanged', () => window.location.reload());
             window.ethereum.on('accountsChanged', enableEthereum);
           }
+          tokenBalance.value = await setChainId()
         } else {
-          console.log('Please install MetaMask!');
+          console.log('Connect metamask');
         }
-        tokenBalance.value = await setChainId()
       });
       watch(selectedChainFrom, () => {
         changeFromChain()
@@ -239,9 +317,9 @@
         balanceError,
         optionsTokens,
         optionsChains,
+        filtredOptionsTokensFrom,
         selectedTokenFrom,
         selectedChainFrom,
-        selectedTokenTo,
         selectedChainTo,
         amount,
         tab, 
@@ -249,7 +327,9 @@
         tokenBalance,
         enableEthereum,
         sendTransaction,
-        isConnected
+        isConnected,
+        transactionStatus,
+        transactionPending
       };
     }
   }
@@ -307,7 +387,37 @@ input {
     background-color: lightgray;
     padding: 20px;
 }
+.transaction-status {
+  position: fixed;
+  top: 150px;
+  left: 50%;
+  transform: translate(-50%, 0);
+  width: 300px;
+  height: 200px;
+  background-color: white;
+  z-index: 1000;
+  padding: 20px;
+  box-shadow: 0 0 30px rgba(0, 0, 0, 0.2);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 5px;
+  text-align: center;
+}
+.loader {
+  border: 16px solid #f3f3f3;
+  border-radius: 50%;
+  border-top: 16px solid #3498db;
+  width: 60px;
+  height: 60px;
+  animation: spin 2s linear infinite;
+  margin-right: 10px;
+}
 
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
 .menu {
     display: flex;
     justify-content: space-between;
@@ -369,11 +479,23 @@ input {
 }
 .input-amount{
   padding-left: 20px;
-  width: 300px;
+  max-width: 100%;
   background-color: #f0f0f0;
   border-radius: 10px;
   border: solid;
   border-width: 1px;
+}
+
+.select-100 {
+  text-align: center;
+  padding-left: 20px;
+  background-color: #f0f0f0;
+  margin-right: -1px;
+  border-radius: 10px; 
+  border: solid;
+  border-width: 1px;
+  height: 40px;
+  width: 320px;
 }
 
 .select-80 {
