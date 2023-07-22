@@ -1,0 +1,117 @@
+body {
+    font-family: Arial, sans-serif;
+    background-color: #F0F0F0;
+    padding: 20px;
+}
+form {
+    background-color: white;
+    border-radius: 5px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+}
+h2 {
+    color: #333;
+    margin-bottom: 20px;
+}
+button {
+    background-color: #007BFF;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 5px;
+    cursor: pointer;
+    padding: 10px 20px;
+}
+button:hover {
+    background-color: #0056b3;
+}
+label {
+    display: block;
+    margin-bottom: 10px;
+}
+input {
+    width: 90%;
+    padding: 10px;
+    border-radius: 5px;
+    border: 1px solid #CCC;
+    margin-bottom: 20px;
+}
+.container {
+    display: flex;
+    justify-content: center;
+}
+.account{
+    margin-bottom: 20px;
+    font-size: large;
+}
+.background {
+    width: 50%;
+    background-color: lightgray;
+    padding: 20px;
+}
+
+.menu {
+    display: flex;
+    justify-content: space-between;
+}
+
+.menu button {
+    width:50%;
+    padding: 10px 20px;
+    background-color: #c8c8d3;
+    border: 1px solid #afadad;
+    border-radius: 0px;
+    border-top-left-radius: 5px;
+    border-top-right-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+.form-control-threshold{
+    width: 30%;
+    text-align: center;
+}
+
+.menu button:hover {
+    background-color: #afc5e4;
+}
+
+.menu .active {
+    background-color: #007bff;
+    color: white;
+}
+.label-address {
+    cursor: pointer;
+}
+
+.top-right-buttons {
+    position: absolute;
+    top: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+}
+
+.connect-button,
+.disconnect-button {
+    margin: 20px;
+}
+.container {
+display: flex;
+flex-direction: column;
+align-items: center;
+}
+.main-container{
+max-width: 400px;
+width: 100%;
+}
+
+.form-container {
+max-width: 100%;
+}
+
+@media (max-width: 768px) {
+.form-container {
+    max-width: 100%;
+}
+}
