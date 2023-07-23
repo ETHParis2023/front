@@ -27,7 +27,7 @@
               </div>
               <div class="row">
                 <select class="select select-80" v-model="selectedTokenFrom">
-                  <option  v-for="option in filtredOptionsTokensFrom" :key="option.value" :value="option.value">
+                  <option  v-for="option in optionsChains.map(({ value, text }) => ({ value, text: text.split(' ')[1] }))" :key="option.value" :value="option.value">
                     {{option.text }}
                   </option>
                 </select>
@@ -62,7 +62,7 @@
               <input class="input-amount" placeholder="0.0" v-model="amount"/>
             </div>
           </div>
-            <button :disabled="!currentAccount" type="submit" class="btn btn-primary">Transfer</button>
+            <button :disabled="!currentAccount" type="submit" class="btn btn-primary">Bridge</button>
         </form>
       </div>
     </div>
