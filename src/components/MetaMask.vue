@@ -27,7 +27,7 @@
               </div>
               <div class="row">
                 <select class="select select-80" v-model="selectedTokenFrom">
-                  <option  v-for="option in optionsChains.map(({ value, text }) => ({ value, text: text.split(' ')[1] }))" :key="option.value" :value="option.value">
+                  <option  v-for="option in filtredOptionsTokensFrom" :key="option.value" :value="option.value">
                     {{option.text }}
                   </option>
                 </select>
@@ -149,6 +149,8 @@
           if (accounts[0] !== currentAccount.value ) {
             currentAccount.value = accounts[0];
             isConnected.value = true;
+            tokenBalance.value = await setChainId()
+            filtredOptionsTokensFrom.value = await filterTokensFrom()
           }
         } catch (err) {
           if (err.code === 4001) {
@@ -330,8 +332,10 @@
             window.ethereum.on('accountsChanged', enableEthereum);
           }
           tokenBalance.value = await setChainId()
+          console.log('tokenBalance', tokenBalance)
         } else {
           console.log('Connect metamask');
+          filtredOptionsTokensFrom.value = await filterTokensFrom()
         }
       });
       watch(selectedChainFrom, () => {
