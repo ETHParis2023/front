@@ -27,7 +27,7 @@
               </div>
               <div class="row">
                 <select class="select select-80" v-model="selectedTokenFrom">
-                  <option  v-for="option in filtredOptionsTokensFrom" :key="option.value" :value="option.value">
+                  <option v-for="option in filtredOptionsTokensFrom" :key="option.value" :value="option.value">
                     {{option.text }}
                   </option>
                 </select>
@@ -119,7 +119,6 @@
       }
 
       const getDecimal = async() =>{
-        console.log('selectedTokenFrom.value', selectedTokenFrom.value) 
         if (selectedTokenFrom.value == 'USDC'){
           return 6
         }
@@ -235,15 +234,21 @@
 
       const filterTokensFrom = async() => {
         let new_list = []
+        let idx = 0
         for (let option of optionsTokens.value){
           if (option.chains.includes(selectedChainFrom.value)){
             new_list.push(option)
+            selectedTokenFrom.value = optionsTokens.value[idx].value
           }
+          idx = idx + 1
         }
         return new_list
       }
 
       const setChainId = async() =>{
+        USDCPolygon = await createContractUSDCPolygon();
+        USDCGnosis = await createContractUSDCGnosis();
+        cUSDCelo = await createContractcUSDCelo();
         let chainIdHex = await window.ethereum.request({ method: 'eth_chainId' });
         selectedChainFrom.value = chainIdHex
         selectedChainTo.value = '0x64'
@@ -257,20 +262,33 @@
           tokenContract = cUSDCelo
         }
         filtredOptionsTokensFrom.value = await filterTokensFrom()
-        const balance = await getTokenBalance()
-        const decimal = await getDecimal()
-        return balance/Math.pow(10, decimal)
+        if (currentAccount.value){
+          const balance = await getTokenBalance()
+          const decimal = await getDecimal()
+          return balance/Math.pow(10, decimal)
+        }
+        
       }
 
       const changeFromChain = async() =>{
+        const accounts = await window.ethereum.request({ method: 'eth_accounts' });
         let chainIdHex = await window.ethereum.request({ method: 'eth_chainId' });
-        if (selectedChainFrom.value != parseInt(chainIdHex, 16)){
+        if (selectedChainFrom.value == chainIdHex){
+          return 0
+        }
+        if ((accounts.length == 0)) {
+          await window.ethereum.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: chainIdHex }], //
+          });
+        }
+        if (selectedChainFrom.value != chainIdHex){
           chainIdHex = '0x' + parseInt(selectedChainFrom.value).toString(16)
           await window.ethereum.request({
             method: 'wallet_switchEthereumChain',
             params: [{ chainId: chainIdHex }], //
           });
-          return 0
+          filtredOptionsTokensFrom.value = await filterTokensFrom()
         }
        
         if (selectedChainFrom.value == '0x89'){
@@ -285,9 +303,7 @@
           tokenContract = cUSDCelo
           selectedTokenFrom.value = 'cUSD'
         }
-        const balance = await getTokenBalance()
-        const decimal = await getDecimal()
-        return balance/Math.pow(10, decimal)
+        tokenBalance.value = await setChainId()
       }
 
       const createContractUSDCPolygon = async() =>{
@@ -317,6 +333,7 @@
       onMounted(async () => {
         const provider = await detectEthereumProvider();
         const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+        selectedChainFrom.value = await window.ethereum.request({ method: 'eth_chainId' });
 
   
         if ((accounts.length != 0)) {
@@ -332,7 +349,6 @@
             window.ethereum.on('accountsChanged', enableEthereum);
           }
           tokenBalance.value = await setChainId()
-          console.log('tokenBalance', tokenBalance)
         } else {
           console.log('Connect metamask');
           filtredOptionsTokensFrom.value = await filterTokensFrom()
