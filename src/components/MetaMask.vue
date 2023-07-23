@@ -4,17 +4,22 @@
       <button v-if="!isConnected" id="connectWallet" class="connect-button" @click="enableEthereum">Connect wallet</button>
       <button v-else id="disconnectWallet" class="disconnect-button">{{ currentAccount.slice(0, 6)+'......'+currentAccount.slice(-6) }}</button>
     </div>
-    <div class="transaction-status" v-if="transactionStatus">
-      <div v-if="transactionPending" class="loader"></div>
-      {{ transactionStatus }}
-      <div v-if!="transactionPending">
-        {{  }}
+    <div v-if="transactionStatus" class="transaction-contrainer">
+      <div class="transaction-status" >
+        <div v-if="transactionPending" class="loader"></div>
+        {{ transactionStatus }}
+      </div>
+      <div v-if="transactionLink">
+        <a :href="transactionLink">Link</a>
+      </div>
+      <div>
+        <button @click="closeWindow">Close</button>
       </div>
     </div>
     <div class="main-container">
       <div class="form-container">
         <form id="sendTransaction" class="mb-5" @submit.prevent="sendTransaction">
-          <h2 class="mb-3">AA Bridge</h2>
+          <h2 class="mb-3">CANTILEVER</h2>
           <div class="bridge-container">
             <div class="destination-from">
               <div class="destination">
@@ -27,7 +32,7 @@
                   </option>
                 </select>
                 <select class="select select-20" v-model="selectedChainFrom">
-                  <option v-for="option in optionsChains" :key="option.value" :value="option.value">
+                  <option v-for="option in optionsChains.map(({ value, text }) => ({ value, text: text.split(' ')[0] }))" :key="option.value" :value="option.value">
                     {{ option.text }}
                   </option>
                 </select>
@@ -86,9 +91,9 @@
       ])
       let filtredOptionsTokensFrom = ref([])
       const optionsChains = ref([
-        { value: '0x89', text: 'Polygon' },
-        { value: '0x64', text: 'Gnosis' },
-        { value: '0xa4ec', text: 'Celo' },
+        { value: '0x89', text: 'Polygon USDC' },
+        { value: '0x64', text: 'Gnosis USDC' },
+        { value: '0xa4ec', text: 'Celo cUSD' },
         // { value: '0x44d', text: 'ZKEVM' },
       ])
       const currentAccount = ref(null);
@@ -102,6 +107,7 @@
       const bridgeAddressGnosis = process.env.VUE_APP_BRIDGE_ADDRESS_GNOSIS_SAFE
       const bridgeAddressCelo = process.env.VUE_APP_BRIDGE_ADDRESS_CELO_SAFE
       let destinationAddress;
+      let transactionLink = ref('')
       let tokenBalance = ref(0)
       let balanceError = ref('')
       let transactionStatus = ref(null);
@@ -113,6 +119,7 @@
       }
 
       const getDecimal = async() =>{
+        console.log('selectedTokenFrom.value', selectedTokenFrom.value) 
         if (selectedTokenFrom.value == 'USDC'){
           return 6
         }
@@ -130,6 +137,10 @@
       const makeRawAmount = async () => {
         const decimal = await getDecimal()
         return amount.value * Math.pow(10, decimal)
+      }
+
+      const closeWindow = async() =>{
+        transactionStatus.value = null;
       }
   
       const enableEthereum = async () => {
@@ -183,6 +194,17 @@
               });
 
               const receipt = await transactionResponse.wait();
+              let preLink = ''
+              if (selectedChainFrom.value == '0x89'){
+                preLink = 'https://polygonscan.com/tx/'
+              }
+              else if (selectedChainFrom.value == '0x64'){
+                preLink = 'https://gnosisscan.io/tx/'
+              }
+              else if (selectedChainFrom.value == '0xa4ec'){
+                preLink = 'https://celoscan.io/tx/'
+              }
+              transactionLink.value = preLink + receipt.transactionHash
               transactionPending.value = false;
 
               if(receipt.status === 1) {
@@ -190,13 +212,13 @@
                   console.log(receipt)
                   setTimeout(() => {
                     transactionStatus.value = null;
-                  }, 2000);
+                  }, 5000);
               }
               else {
                   transactionStatus.value = 'Transaction failed';
                   setTimeout(() => {
                     transactionStatus.value = null;
-                  }, 2000);
+                  }, 5000);
                   console.log('Transaction failed');
               }
           } catch (error) {
@@ -222,7 +244,7 @@
       const setChainId = async() =>{
         let chainIdHex = await window.ethereum.request({ method: 'eth_chainId' });
         selectedChainFrom.value = chainIdHex
-        selectedChainTo.value = '0x25'
+        selectedChainTo.value = '0x64'
         if (selectedChainFrom.value == '0x89'){
           tokenContract = USDCPolygon
         }
@@ -246,16 +268,20 @@
             method: 'wallet_switchEthereumChain',
             params: [{ chainId: chainIdHex }], //
           });
+          return 0
         }
        
         if (selectedChainFrom.value == '0x89'){
           tokenContract = USDCPolygon
+          selectedTokenFrom.value = 'USDC'
         }
         else if(selectedChainFrom.value == '0x64'){
           tokenContract = USDCGnosis
+          selectedTokenFrom.value = 'USDC'
         }
         else if(selectedChainFrom.value == '0xa4ec'){
           tokenContract = cUSDCelo
+          selectedTokenFrom.value = 'cUSD'
         }
         const balance = await getTokenBalance()
         const decimal = await getDecimal()
@@ -300,7 +326,6 @@
           if (provider !== window.ethereum) {
             console.error('Do you have multiple wallets installed?');
           } else {
-            console.log('provider', provider)
             window.ethereum.on('chainChanged', () => window.location.reload());
             window.ethereum.on('accountsChanged', enableEthereum);
           }
@@ -318,6 +343,7 @@
         optionsTokens,
         optionsChains,
         filtredOptionsTokensFrom,
+        closeWindow,
         selectedTokenFrom,
         selectedChainFrom,
         selectedChainTo,
@@ -387,17 +413,21 @@ input {
     background-color: lightgray;
     padding: 20px;
 }
-.transaction-status {
+.transaction-contrainer{
   position: fixed;
   top: 150px;
   left: 50%;
   transform: translate(-50%, 0);
   width: 300px;
-  height: 200px;
+  height: 270px;
   background-color: white;
   z-index: 1000;
   padding: 20px;
   box-shadow: 0 0 30px rgba(0, 0, 0, 0.2);
+}
+.transaction-status {
+  width: 300px;
+  height: 200px;
   display: flex;
   justify-content: center;
   align-items: center;
